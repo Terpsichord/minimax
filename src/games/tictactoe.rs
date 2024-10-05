@@ -1,9 +1,8 @@
-use itertools::Itertools;
 use std::fmt;
 use std::fmt::{Display, Formatter};
 use std::str::FromStr;
 
-use crate::games::Game;
+use crate::games::{Game, WinState};
 use crate::minimax::{self, Player, State};
 
 #[derive(Debug, Default)]
@@ -27,23 +26,27 @@ impl Game for TicTacToe {
     }
 
     fn display_size(&self) -> (u16, u16) {
-        (15, 8)
+        (16, 8)
     }
 
-    fn move_history(&self) -> String {
+    fn move_history(&self) -> Vec<(String, Option<String>)> {
         self.0
             .move_history
             .chunks(2)
-            .enumerate()
-            .map(|(n, turn)| {
-                format!(
-                    "{}. {} {}",
-                    n + 1,
-                    turn[0],
-                    turn.get(1).map(ToString::to_string).unwrap_or_default()
-                )
-            })
-            .join("\n")
+            .map(|turn| (turn[0].to_string(), turn.get(1).map(|m| m.to_string())))
+            .collect()
+    }
+
+    fn win_state(&self) -> Option<WinState> {
+        if self.0.is_terminal() {
+            if self.0.winner.is_some() {
+                Some(WinState::Decisive)
+            } else {
+                Some(WinState::Draw)
+            }
+        } else {
+            None
+        }
     }
 
     fn is_valid_move(&self, move_: &str) -> bool {
@@ -57,6 +60,14 @@ impl Game for TicTacToe {
     fn play_move(&mut self, move_: &str) {
         self.0
             .place(Move::from_str(move_).expect("expected valid move"))
+    }
+
+    fn computer_move(&self) -> String {
+        minimax::best_move(&self.0).to_string()
+    }
+
+    fn reset(&mut self) {
+        self.0 = TicTacToeState::default();
     }
 }
 
@@ -91,7 +102,7 @@ impl From<Player> for Tile {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct Move {
     x: usize,
     y: usize,
@@ -121,7 +132,11 @@ impl FromStr for Move {
             Err("too many coordinates")?;
         }
 
-        Ok(Move { x, y, tile: Tile::Empty })
+        Ok(Move {
+            x,
+            y,
+            tile: Tile::Empty,
+        })
     }
 }
 
@@ -265,7 +280,7 @@ impl TicTacToeState {
 
 impl minimax::State<f32, Move> for TicTacToeState {
     fn is_terminal(&self) -> bool {
-        matches!(self.winner, Some(_)) || self.draw
+        self.winner.is_some() || self.draw
     }
 
     fn heuristic_value(&self) -> f32 {
@@ -304,13 +319,7 @@ impl minimax::State<f32, Move> for TicTacToeState {
         board.0[action.y][action.x] = action.tile;
 
         let win = board.check_win(action);
-        let full = board
-            .0
-            .as_flattened()
-            .into_iter()
-            .filter(|tile| matches!(tile, Tile::Empty))
-            .next()
-            .is_none();
+        let full = !board.0.as_flattened().iter().any(|tile| matches!(tile, Tile::Empty));
         let draw = full && !win;
 
         // TODO: remove the clones here
@@ -327,9 +336,10 @@ impl minimax::State<f32, Move> for TicTacToeState {
     }
 }
 
+#[allow(unused_imports)]
 mod tests {
-    use crate::minimax::State;
     use super::*;
+    use crate::minimax::State;
 
     #[test]
     fn test_win_diagonal() {
@@ -357,5 +367,16 @@ mod tests {
             [Tile::Nought, Tile::Cross, Tile::Nought],
             [Tile::Cross, Tile::Cross, Tile::Cross],
         ]));
+    }
+
+    #[test]
+    fn ensure_draw() {
+        let state = TicTacToeState::with_board(Board([
+            [Tile::Cross, Tile::Empty, Tile::Empty],
+            [Tile::Empty, Tile::Empty, Tile::Empty],
+            [Tile::Empty, Tile::Empty, Tile::Empty],
+        ]));
+        let Move { x, y, .. } = minimax::best_move(&state);
+        assert_eq!((x, y), (1, 1));
     }
 }

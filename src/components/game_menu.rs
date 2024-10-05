@@ -1,7 +1,5 @@
 use color_eyre::eyre::eyre;
 use crossterm::event::{KeyCode, KeyEvent};
-use futures::SinkExt;
-use itertools::Itertools;
 use ratatui::layout::{Constraint, Layout, Margin, Rect};
 use ratatui::text::Span;
 use ratatui::Frame;
@@ -42,7 +40,7 @@ impl GameMenu {
         self.action_tx
             .as_ref()
             .ok_or(eyre!("no action_tx set"))?
-            .send(Action::OpenGame(self.selected_game))?;
+            .send(Action::OpenGame(self.game_cards[self.selected_game].id()))?;
         Ok(())
     }
 }
@@ -56,36 +54,35 @@ impl Component for GameMenu {
             vertical: 3,
         });
 
-        let areas = Layout::vertical([Constraint::Length(1), Constraint::Fill(1)])
+        let [text, grid] = Layout::vertical([Constraint::Length(1), Constraint::Fill(1)])
             .spacing(1)
-            .split(area);
-        let (text, grid) = areas.into_iter().collect_tuple().unwrap();
+            .areas(area);
 
         let column_count = (grid.width / (GAMECARD_SIZE + GRID_SPACING)) as usize;
         let row_count = ((self.game_cards.len() - 1) / column_count) + 1;
 
-        let rows = Layout::vertical(vec![GAMECARD_SIZE / 2 + 1; row_count]).split(*grid);
+        let rows = Layout::vertical(vec![GAMECARD_SIZE / 2 + 1; row_count]).split(grid);
 
         let column_layout =
             Layout::horizontal(vec![GAMECARD_SIZE; column_count]).spacing(GRID_SPACING);
 
         let grid_areas = rows
-            .into_iter()
-            .map(|row| {
+            .iter()
+            .flat_map(|row| {
                 column_layout
                     .split(*row)
                     .iter()
                     .cloned()
                     .collect::<Vec<_>>()
-            })
-            .flatten();
+            });
+
 
         for (i, (card, area)) in self.game_cards.iter_mut().zip(grid_areas).enumerate() {
             card.set_selected(i == self.selected_game);
             card.draw(frame, area)?;
         }
 
-        frame.render_widget(Span::raw("Select a game to play:"), *text);
+        frame.render_widget(Span::raw("Select a game to play:"), text);
 
         Ok(())
     }

@@ -1,10 +1,10 @@
+use color_eyre::eyre::eyre;
 use color_eyre::Result;
 use crossterm::event::KeyEvent;
 use ratatui::prelude::Rect;
 use serde::{Deserialize, Serialize};
-use std::cell::RefCell;
-use std::iter;
-use std::str::FromStr;
+use std::collections::BTreeMap;
+use std::sync::atomic::{AtomicUsize, Ordering};
 use tokio::sync::mpsc;
 use tracing::{debug, info};
 
@@ -15,10 +15,11 @@ use crate::games::Game;
 use crate::tui::TuiConfigBuilder;
 use crate::{
     action::Action,
-    components::{fps::FpsCounter, gamecard::GameCard, home::Home, Component},
+    components::{fps::FpsCounter, gamecard::GameCard, Component},
     config::Config,
     tui::{Event, Tui},
 };
+use crate::games::chess::Chess;
 
 pub struct App<'a> {
     config: Config,
@@ -29,7 +30,7 @@ pub struct App<'a> {
     last_tick_key_events: Vec<KeyEvent>,
     action_tx: mpsc::UnboundedSender<Action>,
     action_rx: mpsc::UnboundedReceiver<Action>,
-    game_screens: Vec<GameScreen<'a>>,
+    game_screens: BTreeMap<GameId, GameScreen<'a>>,
 }
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -38,26 +39,45 @@ pub enum Mode {
     Game,
     All,
 }
+
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Serialize, Deserialize, PartialOrd, Ord)]
+pub struct GameId(usize);
+
+static NEXT_GAME_ID: AtomicUsize = AtomicUsize::new(0);
+
+impl GameId {
+    fn new() -> Self {
+        Self(NEXT_GAME_ID.fetch_add(1, Ordering::SeqCst))
+    }
+}
+
 #[derive(Clone, Copy, Debug, Default)]
 pub enum Screen {
     #[default]
     Home,
-    Game(usize),
+    Game(GameId),
 }
 
 impl App<'_> {
     pub fn new() -> Result<Self> {
         let (action_tx, action_rx) = mpsc::unbounded_channel();
-        let games: Vec<Box<dyn Game>> = vec![
-            Box::new(TicTacToe::default()),
-            Box::new(TicTacToe::default()),
+        let games: Vec<(GameId, Box<dyn Game>)> = vec![
+            (GameId::new(), Box::new(TicTacToe::default())),
+            (GameId::new(), Box::new(Chess::default())),
         ];
-        let game_cards = games.iter().map(|g| GameCard::from(&**g)).collect();
-        let game_screens = games.into_iter().map(GameScreen::new).collect();
+        let game_cards = games
+            .iter()
+            .map(|(id, game)| GameCard::from_game_with_id(&**game, *id))
+            .collect();
+
+        let game_screens = BTreeMap::from_iter(
+            games
+                .into_iter()
+                .map(|(id, game)| (id, GameScreen::new(game))),
+        );
 
         Ok(Self {
             home_components: vec![
-                Box::new(Home::new()),
                 Box::new(FpsCounter::default()),
                 Box::new(GameMenu::new(game_cards)),
             ],
@@ -140,11 +160,15 @@ impl App<'_> {
     ) -> Result<()> {
         match self.screen {
             Screen::Home => {
-                for mut component in self.home_components.iter_mut() {
+                for component in self.home_components.iter_mut() {
                     func(&mut **component)?;
                 }
             }
-            Screen::Game(id) => func(&mut self.game_screens[id])?,
+            Screen::Game(id) => func(
+                self.game_screens
+                    .get_mut(&id)
+                    .expect("coudn't find game with id"),
+            )?,
         }
         Ok(())
     }
@@ -219,6 +243,7 @@ impl App<'_> {
                 Action::Resize(w, h) => self.handle_resize(tui, w, h)?,
                 Action::Render => self.render(tui)?,
                 Action::OpenGame(game_id) => self.open_game(game_id),
+                Action::Back if matches!(self.screen, Screen::Game(_)) => self.back(),
                 _ => {}
             }
             for component in self.home_components.iter_mut() {
@@ -248,7 +273,27 @@ impl App<'_> {
         Ok(())
     }
 
-    fn open_game(&mut self, game_id: usize) {
+    fn open_game(&mut self, game_id: GameId) {
         self.screen = Screen::Game(game_id);
+    }
+
+    fn back(&mut self) {
+        self.screen = Screen::Home;
+    }
+
+    pub fn open_game_from_name(&self, name: &str) -> Result<()> {
+        let game_id = self
+            .game_screens
+            .iter()
+            .find_map(|(id, game_screen)| {
+                if game_screen.name().to_lowercase() == name.to_lowercase() {
+                    Some(id)
+                } else {
+                    None
+                }
+            })
+            .ok_or_else(|| eyre!("no game with name \"{name}\" found"))?;
+        self.action_tx.send(Action::OpenGame(*game_id))?;
+        Ok(())
     }
 }

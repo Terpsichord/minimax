@@ -1,3 +1,4 @@
+use crate::app::GameId;
 use serde::{Deserialize, Serialize};
 use strum::Display;
 
@@ -8,10 +9,11 @@ pub enum Action {
     Resize(u16, u16),
     Suspend,
     Resume,
+    Back,
     Quit,
     ClearScreen,
     Error(String),
     Help,
-    OpenGame(usize),
+    OpenGame(GameId),
     CloseGame,
 }

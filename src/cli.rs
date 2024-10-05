@@ -5,7 +5,7 @@ use crate::config::{get_config_dir, get_data_dir};
 #[derive(Parser, Debug)]
 #[command(author, version = version(), about)]
 pub struct Cli {
-    /// The chosen game that you want to play
+    /// Open specific game
     #[arg(short, long)]
     pub game: Option<String>,
 }
