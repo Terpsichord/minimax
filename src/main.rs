@@ -1,12 +1,7 @@
 #![allow(dead_code)]
 
-use crate::games::tictactoe;
-use crate::games::tictactoe::TicTacToeState;
-use crate::minimax::State;
 use clap::error::ErrorKind;
 use clap::{CommandFactory, Parser};
-use std::io;
-use std::io::BufRead;
 
 use app::App;
 use cli::Cli;
@@ -46,30 +41,4 @@ async fn main() -> Result<()> {
     app.run().await?;
 
     Ok(())
-}
-
-fn play() {
-    let mut state = TicTacToeState::new();
-    let mut input_moves = io::stdin().lock().lines().map(|line| {
-        line.expect("failed to read input")
-            .parse::<tictactoe::Move>()
-            .expect("failed to parse move")
-    });
-    loop {
-        // Play computer move
-        let best_move = minimax::best_move(&state);
-        dbg!(&best_move);
-        state.place(best_move);
-        println!("{:#?}\n", state);
-
-        // Play user move
-        print!("Enter move (in the format \"xy\"): ");
-        let player_move = input_moves.next().expect("failed to read input");
-
-        state.place(player_move);
-
-        if state.is_terminal() {
-            break;
-        }
-    }
 }

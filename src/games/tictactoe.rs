@@ -63,7 +63,7 @@ impl Game for TicTacToe {
     }
 
     fn computer_move(&self) -> String {
-        minimax::best_move(&self.0).to_string()
+        minimax::best_move(&self.0, u32::MAX).to_string()
     }
 
     fn reset(&mut self) {

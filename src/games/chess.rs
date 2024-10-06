@@ -1,7 +1,10 @@
 use std::fmt;
 use std::fmt::{Display, Formatter};
+use itertools::Itertools;
 use crate::games::{Game, WinState};
-use shakmaty::{san::San, Position, Square, Piece, Color, Role, Outcome};
+use shakmaty::{san::San, Position, Square, Piece, Color, Role, Outcome, Move, ByRole};
+use crate::minimax;
+use crate::minimax::Player;
 
 #[derive(Debug, Default)]
 pub struct Chess(shakmaty::Chess, Vec<San>);
@@ -12,7 +15,11 @@ impl Game for Chess {
     }
 
     fn thumbnail(&self) -> &'static str {
-        "todo"
+        "   │ ♚ │ ♞
+───┼───┼───
+ ♟ │ ♕ │
+───┼───┼───
+ ♔ │   │  "
     }
 
     fn display(&self) -> String {
@@ -54,7 +61,7 @@ impl Game for Chess {
     }
 
     fn computer_move(&self) -> String {
-        San::from_move(&self.0, &self.0.legal_moves()[0]).to_string()
+        San::from_move(&self.0, &minimax::best_move(self, 2)).to_string()
     }
 
     fn reset(&mut self) {
@@ -113,5 +120,44 @@ impl Display for Chess {
             }
         }
         write!(f, "\n  └───┴───┴───┴───┴───┴───┴───┴───┘\n    a   b   c   d   e   f   g   h")
+    }
+}
+
+
+impl minimax::State<f32, Move> for Chess {
+    fn is_terminal(&self) -> bool {
+        self.0.outcome().is_some()
+    }
+
+    fn heuristic_value(&self) -> f32 {
+        match self.0.outcome() {
+            Some(Outcome::Decisive { winner: Color::White }) => f32::INFINITY,
+            Some(Outcome::Decisive { winner: Color::Black }) => f32::NEG_INFINITY,
+            Some(Outcome::Draw) => 0.0,
+            None => {
+                let material = self.0.board().material();
+                let count = |role: ByRole<u8>| role.pawn * 1 + role.knight * 3 + role.bishop * 3 + role.rook * 5 + role.queen * 8;
+                count(material.white) as f32 - count(material.black) as f32
+            }
+        }
+    }
+
+    fn current_player(&self) -> Player {
+        match self.0.turn() {
+            Color::White => Player::Max,
+            Color::Black => Player::Min,
+        }
+    }
+
+    fn actions(&self) -> Vec<Move> {
+        self.0.legal_moves().into_iter().collect_vec()
+    }
+
+    fn result(&self, action: &Move) -> Self {
+        let mut history = self.1.clone();
+        history.push(San::from_move(&self.0, action));
+        let position = self.0.clone().play(action).expect("expected valid move");
+
+        Chess(position, history)
     }
 }
