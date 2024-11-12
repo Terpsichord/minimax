@@ -1,5 +1,3 @@
-#![allow(dead_code)]
-
 use clap::error::ErrorKind;
 use clap::{CommandFactory, Parser};
 
@@ -7,16 +5,17 @@ use app::App;
 use cli::Cli;
 use color_eyre::Result;
 
-mod minimax;
+pub use djinn_minimax as minimax;
 
 mod action;
 mod app;
 mod cli;
 mod components;
-pub mod config;
-pub mod errors;
+mod config;
+mod errors;
 mod games;
-pub mod logging;
+mod logging;
+mod plugins;
 mod tui;
 
 #[tokio::main]

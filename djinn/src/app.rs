@@ -1,6 +1,7 @@
 use color_eyre::eyre::eyre;
 use color_eyre::Result;
 use crossterm::event::KeyEvent;
+use pyo3::Python;
 use ratatui::prelude::Rect;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
@@ -10,8 +11,10 @@ use tracing::{debug, info};
 
 use crate::components::game_menu::GameMenu;
 use crate::components::game_screen::GameScreen;
+use crate::games::chess::Chess;
 use crate::games::tictactoe::TicTacToe;
 use crate::games::Game;
+use crate::plugins::python::PythonPluginManager;
 use crate::tui::TuiConfigBuilder;
 use crate::{
     action::Action,
@@ -19,7 +22,6 @@ use crate::{
     config::Config,
     tui::{Event, Tui},
 };
-use crate::games::chess::Chess;
 
 pub struct App<'a> {
     config: Config,
@@ -61,10 +63,14 @@ pub enum Screen {
 impl App<'_> {
     pub fn new() -> Result<Self> {
         let (action_tx, action_rx) = mpsc::unbounded_channel();
-        let games: Vec<(GameId, Box<dyn Game>)> = vec![
+        let mut games: Vec<(GameId, Box<dyn Game>)> = vec![
             (GameId::new(), Box::new(TicTacToe::default())),
             (GameId::new(), Box::new(Chess::default())),
         ];
+
+        let plugin_games = Python::with_gil(Self::load_python_plugins);
+        games.extend(plugin_games.into_iter().map(|g| (GameId::new(), g)));
+
         let game_cards = games
             .iter()
             .map(|(id, game)| GameCard::from_game_with_id(&**game, *id))
@@ -90,6 +96,21 @@ impl App<'_> {
             action_rx,
             game_screens,
         })
+    }
+
+    fn load_python_plugins(py: Python<'_>) -> Vec<Box<dyn Game>> {
+        let paths = vec!["../python-plugin/hex.py"];
+
+        let plugin_manager = PythonPluginManager::new(py);
+        let mut plugins = Vec::with_capacity(paths.len());
+        for path in paths {
+            let plugin = plugin_manager
+                .load_plugin(path)
+                .expect("TODO: failed to load plugin");
+            let game: Box<dyn Game> = Box::new(plugin);
+            plugins.push(game);
+        }
+        plugins
     }
 
     pub async fn run(&mut self) -> Result<()> {
@@ -167,7 +188,7 @@ impl App<'_> {
             Screen::Game(id) => func(
                 self.game_screens
                     .get_mut(&id)
-                    .expect("coudn't find game with id"),
+                    .expect("couldn't find game with id"),
             )?,
         }
         Ok(())
@@ -246,11 +267,14 @@ impl App<'_> {
                 Action::Back if matches!(self.screen, Screen::Game(_)) => self.back(),
                 _ => {}
             }
-            for component in self.home_components.iter_mut() {
+
+            let action_tx = self.action_tx.clone();
+            self.try_perform_on_components(|component| {
                 if let Some(action) = component.update(action.clone())? {
-                    self.action_tx.send(action)?
+                    action_tx.send(action)?
                 };
-            }
+                Ok(())
+            })?;
         }
         Ok(())
     }

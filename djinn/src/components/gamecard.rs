@@ -14,8 +14,8 @@ pub const GAMECARD_SIZE: u16 = THUMBNAIL_SIZE + 2;
 #[derive(Debug)]
 pub struct GameCard {
     id: GameId,
-    name: &'static str,
-    thumbnail: &'static str,
+    name: String,
+    thumbnail: String,
     selected: bool,
 }
 
@@ -27,6 +27,7 @@ impl GameCard {
     pub fn from_game_with_id(value: &dyn Game, id: GameId) -> Self {
         Self {
             id,
+            // TODO: maybe change these fields to not clone
             name: value.name(),
             thumbnail: value.thumbnail(),
             selected: false,
@@ -41,9 +42,9 @@ impl GameCard {
 impl Component for GameCard {
     fn draw(&mut self, frame: &mut Frame, area: Rect) -> color_eyre::Result<()> {
         frame.render_widget(
-            Paragraph::new(self.thumbnail).block(
+            Paragraph::new(&*self.thumbnail).block(
                 Block::bordered()
-                    .title(self.name)
+                    .title(&*self.name)
                     .title_alignment(Alignment::Center)
                     .title_style(if self.selected {
                         (Modifier::BOLD | Modifier::UNDERLINED).into()

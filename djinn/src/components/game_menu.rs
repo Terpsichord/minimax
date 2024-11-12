@@ -48,6 +48,23 @@ impl GameMenu {
 const GRID_SPACING: u16 = 1;
 
 impl Component for GameMenu {
+    fn register_action_handler(&mut self, tx: UnboundedSender<Action>) -> color_eyre::Result<()> {
+        self.action_tx = Some(tx);
+
+        Ok(())
+    }
+
+    fn handle_key_event(&mut self, key: KeyEvent) -> color_eyre::Result<Option<Action>> {
+        match key.code {
+            KeyCode::Left => self.previous_game(),
+            KeyCode::Right => self.next_game(),
+            KeyCode::Enter | KeyCode::Char(' ') => self.open_game()?,
+            _ => {}
+        }
+
+        Ok(None)
+    }
+
     fn draw(&mut self, frame: &mut Frame, area: Rect) -> color_eyre::Result<()> {
         let area = area.inner(Margin {
             horizontal: 6,
@@ -66,16 +83,13 @@ impl Component for GameMenu {
         let column_layout =
             Layout::horizontal(vec![GAMECARD_SIZE; column_count]).spacing(GRID_SPACING);
 
-        let grid_areas = rows
-            .iter()
-            .flat_map(|row| {
-                column_layout
-                    .split(*row)
-                    .iter()
-                    .cloned()
-                    .collect::<Vec<_>>()
-            });
-
+        let grid_areas = rows.iter().flat_map(|row| {
+            column_layout
+                .split(*row)
+                .iter()
+                .cloned()
+                .collect::<Vec<_>>()
+        });
 
         for (i, (card, area)) in self.game_cards.iter_mut().zip(grid_areas).enumerate() {
             card.set_selected(i == self.selected_game);
@@ -83,23 +97,6 @@ impl Component for GameMenu {
         }
 
         frame.render_widget(Span::raw("Select a game to play:"), text);
-
-        Ok(())
-    }
-
-    fn handle_key_event(&mut self, key: KeyEvent) -> color_eyre::Result<Option<Action>> {
-        match key.code {
-            KeyCode::Left => self.previous_game(),
-            KeyCode::Right => self.next_game(),
-            KeyCode::Enter | KeyCode::Char(' ') => self.open_game()?,
-            _ => {}
-        }
-
-        Ok(None)
-    }
-
-    fn register_action_handler(&mut self, tx: UnboundedSender<Action>) -> color_eyre::Result<()> {
-        self.action_tx = Some(tx);
 
         Ok(())
     }

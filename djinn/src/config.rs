@@ -466,32 +466,32 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_parse_style_default() {
+    fn parse_style_default() {
         let style = parse_style("");
         assert_eq!(style, Style::default());
     }
 
     #[test]
-    fn test_parse_style_foreground() {
+    fn parse_style_foreground() {
         let style = parse_style("red");
         assert_eq!(style.fg, Some(Color::Indexed(1)));
     }
 
     #[test]
-    fn test_parse_style_background() {
+    fn parse_style_background() {
         let style = parse_style("on blue");
         assert_eq!(style.bg, Some(Color::Indexed(4)));
     }
 
     #[test]
-    fn test_parse_style_modifiers() {
+    fn parse_style_modifiers() {
         let style = parse_style("underline red on blue");
         assert_eq!(style.fg, Some(Color::Indexed(1)));
         assert_eq!(style.bg, Some(Color::Indexed(4)));
     }
 
     #[test]
-    fn test_process_color_string() {
+    fn parse_color_string() {
         let (color, modifiers) = process_color_string("underline bold inverse gray");
         assert_eq!(color, "gray");
         assert!(modifiers.contains(Modifier::UNDERLINED));
@@ -500,26 +500,26 @@ mod tests {
     }
 
     #[test]
-    fn test_parse_color_rgb() {
+    fn parse_color_rgb() {
         let color = parse_color("rgb123");
         let expected = 16 + 36 + 2 * 6 + 3;
         assert_eq!(color, Some(Color::Indexed(expected)));
     }
 
     #[test]
-    fn test_parse_color_unknown() {
+    fn parse_color_unknown() {
         let color = parse_color("unknown");
         assert_eq!(color, None);
     }
 
     #[test]
-    fn test_config() -> Result<()> {
+    fn config() -> Result<()> {
         let c = Config::new()?;
         assert_eq!(
             c.keybindings
-                .get(&Mode::Home)
+                .get(&Mode::All)
                 .unwrap()
-                .get(&parse_key_sequence("<q>").unwrap_or_default())
+                .get(&parse_key_sequence("<Ctrl-q>").unwrap_or_default())
                 .unwrap(),
             &Action::Quit
         );
@@ -527,7 +527,7 @@ mod tests {
     }
 
     #[test]
-    fn test_simple_keys() {
+    fn simple_keys() {
         assert_eq!(
             parse_key_event("a").unwrap(),
             KeyEvent::new(KeyCode::Char('a'), KeyModifiers::empty())
@@ -545,7 +545,7 @@ mod tests {
     }
 
     #[test]
-    fn test_with_modifiers() {
+    fn with_modifiers() {
         assert_eq!(
             parse_key_event("ctrl-a").unwrap(),
             KeyEvent::new(KeyCode::Char('a'), KeyModifiers::CONTROL)
@@ -563,7 +563,7 @@ mod tests {
     }
 
     #[test]
-    fn test_multiple_modifiers() {
+    fn multiple_modifiers() {
         assert_eq!(
             parse_key_event("ctrl-alt-a").unwrap(),
             KeyEvent::new(
@@ -579,7 +579,7 @@ mod tests {
     }
 
     #[test]
-    fn test_reverse_multiple_modifiers() {
+    fn reverse_multiple_modifiers() {
         assert_eq!(
             key_event_to_string(&KeyEvent::new(
                 KeyCode::Char('a'),
@@ -590,13 +590,13 @@ mod tests {
     }
 
     #[test]
-    fn test_invalid_keys() {
+    fn invalid_keys() {
         assert!(parse_key_event("invalid-key").is_err());
         assert!(parse_key_event("ctrl-invalid-key").is_err());
     }
 
     #[test]
-    fn test_case_insensitivity() {
+    fn case_insensitivity() {
         assert_eq!(
             parse_key_event("CTRL-a").unwrap(),
             KeyEvent::new(KeyCode::Char('a'), KeyModifiers::CONTROL)

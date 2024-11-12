@@ -9,16 +9,17 @@ use crate::minimax::{self, Player, State};
 pub struct TicTacToe(TicTacToeState);
 
 impl Game for TicTacToe {
-    fn name(&self) -> &'static str {
-        "Tic Tac Toe"
+    fn name(&self) -> String {
+        "Tic Tac Toe".to_string()
     }
 
-    fn thumbnail(&self) -> &'static str {
+    fn thumbnail(&self) -> String {
         " X │ O │
 ───┼───┼───
    │ X │
 ───┼───┼───
  O │   │ X "
+            .to_string()
     }
 
     fn display(&self) -> String {
@@ -29,12 +30,8 @@ impl Game for TicTacToe {
         (16, 8)
     }
 
-    fn move_history(&self) -> Vec<(String, Option<String>)> {
-        self.0
-            .move_history
-            .chunks(2)
-            .map(|turn| (turn[0].to_string(), turn.get(1).map(|m| m.to_string())))
-            .collect()
+    fn move_history(&self) -> Vec<String> {
+        self.0.move_history.iter().map(Move::to_string).collect()
     }
 
     fn win_state(&self) -> Option<WinState> {
@@ -164,6 +161,7 @@ impl Display for Move {
 pub struct Board([[Tile; 3]; 3]);
 
 impl Board {
+    #[allow(dead_code)]
     fn new() -> Self {
         Self::default()
     }
@@ -255,14 +253,25 @@ pub struct TicTacToeState {
 }
 
 impl TicTacToeState {
+    #[allow(dead_code)]
     pub fn new() -> Self {
         Self::default()
     }
 
     // Create a new Tic-Tac-Toe state with a given board where Crosses are to move
+    #[cfg(test)]
     fn with_board(board: Board) -> Self {
         Self {
             board,
+            ..Default::default()
+        }
+    }
+
+    #[cfg(test)]
+    fn with_board_and_player(board: Board, player: Player) -> Self {
+        Self {
+            board,
+            player,
             ..Default::default()
         }
     }
@@ -283,7 +292,7 @@ impl minimax::State<f32, Move> for TicTacToeState {
         self.winner.is_some() || self.draw
     }
 
-    fn heuristic_value(&self) -> f32 {
+    fn evaluation(&self) -> f32 {
         match self.winner {
             Some(Player::Min) => f32::NEG_INFINITY,
             Some(Player::Max) => f32::INFINITY,
@@ -319,7 +328,11 @@ impl minimax::State<f32, Move> for TicTacToeState {
         board.0[action.y][action.x] = action.tile;
 
         let win = board.check_win(action);
-        let full = !board.0.as_flattened().iter().any(|tile| matches!(tile, Tile::Empty));
+        let full = !board
+            .0
+            .as_flattened()
+            .iter()
+            .any(|tile| matches!(tile, Tile::Empty));
         let draw = full && !win;
 
         // TODO: remove the clones here
@@ -342,7 +355,7 @@ mod tests {
     use crate::minimax::State;
 
     #[test]
-    fn test_win_diagonal() {
+    fn win_diagonal() {
         let initial_state = TicTacToeState::with_board(Board([
             [Tile::Empty, Tile::Nought, Tile::Cross],
             [Tile::Nought, Tile::Cross, Tile::Empty],
@@ -363,20 +376,30 @@ mod tests {
     #[test]
     fn win_horizontal() {
         let initial_state = TicTacToeState::with_board(Board([
-            [Tile::Empty, Tile::Nought, Tile::Nought],
+            [Tile::Empty, Tile::Empty, Tile::Nought],
             [Tile::Nought, Tile::Cross, Tile::Nought],
-            [Tile::Cross, Tile::Cross, Tile::Cross],
+            [Tile::Cross, Tile::Cross, Tile::Empty],
         ]));
+
+        let winning_move = Move {
+            x: 2,
+            y: 2,
+            tile: Tile::Cross,
+        };
+
+        let state = initial_state.result(&winning_move);
+
+        assert_eq!(state.winner, Some(Player::Max));
     }
 
     #[test]
     fn ensure_draw() {
-        let state = TicTacToeState::with_board(Board([
+        let state = TicTacToeState::with_board_and_player(Board([
             [Tile::Cross, Tile::Empty, Tile::Empty],
             [Tile::Empty, Tile::Empty, Tile::Empty],
             [Tile::Empty, Tile::Empty, Tile::Empty],
-        ]));
-        let Move { x, y, .. } = minimax::best_move(&state);
+        ]), Player::Min);
+        let Move { x, y, .. } = minimax::best_move(&state, u32::MAX);
         assert_eq!((x, y), (1, 1));
     }
 }
