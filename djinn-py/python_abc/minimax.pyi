@@ -11,7 +11,7 @@ class MinimaxState(ABC, Generic[A]):
         pass
 
     @abstractmethod
-    def heuristic_value(self) -> float:
+    def heuristic_value(self) -> int:
         """Calculates and returns the heuristic value of the state."""
         pass
 

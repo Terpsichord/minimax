@@ -287,16 +287,16 @@ impl TicTacToeState {
     }
 }
 
-impl minimax::State<f32, Move> for TicTacToeState {
+impl minimax::State<i32, Move> for TicTacToeState {
     fn is_terminal(&self) -> bool {
         self.winner.is_some() || self.draw
     }
 
-    fn evaluation(&self) -> f32 {
+    fn evaluation(&self) -> i32 {
         match self.winner {
-            Some(Player::Min) => f32::NEG_INFINITY,
-            Some(Player::Max) => f32::INFINITY,
-            None => 0.0,
+            Some(Player::Min) => i32::MIN,
+            Some(Player::Max) => i32::MAX,
+            None => 0,
         }
     }
 

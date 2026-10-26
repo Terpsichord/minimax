@@ -1,6 +1,7 @@
-use num_traits::Float;
+use num_traits::{One, Bounded};
 use std::cmp::Ordering;
 use std::fmt::Debug;
+use std::ops::{Add, Neg};
 
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub enum Player {
@@ -18,7 +19,7 @@ impl Player {
     }
 }
 
-pub trait State<V: Float, A: Clone> {
+pub trait State<V: Evaluation, A: Clone> {
     fn is_terminal(&self) -> bool;
     fn evaluation(&self) -> V;
     fn current_player(&self) -> Player;
@@ -26,10 +27,14 @@ pub trait State<V: Float, A: Clone> {
     fn result(&self, action: &A) -> Self;
 }
 
+pub trait Evaluation: Bounded + Ord + Neg<Output=Self> + Copy + Add<Self, Output=Self> + One {}
+
+impl<T: Bounded + Ord + Neg<Output=Self> + Copy + Add<Self, Output=Self> + One> Evaluation for T {}
+
 pub fn best_move<S, V, A>(state: &S, depth: u32) -> A
     where
         S: State<V, A>,
-        V: Float,
+        V: Evaluation,
         A: Clone,
 {
     let cmp: fn(&V, &V) -> Option<Ordering> = match state.current_player() {
@@ -50,30 +55,41 @@ pub fn best_move<S, V, A>(state: &S, depth: u32) -> A
 pub fn minimax<S, V, A>(state: &S, depth: u32) -> V
     where
         S: State<V, A>,
-        V: Float,
+        V: Evaluation,
         A: Clone,
 {
-    alpha_beta(state, V::neg_infinity(), V::infinity(), depth)
+    alpha_beta(
+        state,
+        // add 1 to prevent overflow when negated
+        V::min_value() + V::one(),
+        V::max_value(),
+        depth
+    )
 }
 
 fn alpha_beta<S, V, A>(state: &S, mut alpha: V, beta: V, depth: u32) -> V
     where
         S: State<V, A>,
-        V: Float,
+        V: Evaluation,
         A: Clone,
 {
     if state.is_terminal() || depth == 0 {
-        return state.evaluation() * if state.current_player() == Player::Max {
-            V::one()
+        let eval = state.evaluation();
+        return if state.current_player() == Player::Max {
+            eval
         } else {
-            -V::one()
+            -eval
         }
     }
 
-    let mut best_value = V::neg_infinity();
+
+
+    let mut best_value = V::min_value();
 
     for action in state.actions() {
-        let value  = -alpha_beta(&state.result(&action), -beta, -alpha, depth - 1);
+        let value  = -alpha_beta(&state.result(&action), -beta, -alpha, {
+            depth - 1
+        });
 
         best_value = V::max(best_value, value);
         alpha = V::max(alpha, value);

@@ -1,24 +1,32 @@
 from collections import deque
 from typing import Tuple
+import djinn_py
+import copy
+from typing import List
+from typing_extensions import Self
 
-SIZE = 11
+SIZE = 5
+SEARCH_DEPTH = 3
 
 class Hex:
-    board = [['.' for _ in range(SIZE)] for _ in range(SIZE)]
-    current_player = 'X'  # Player 'X' starts
-    move_list = []
+    def __init__(self):
+        self.board = [['.' for _ in range(SIZE)] for _ in range(SIZE)]
+        self.current_player = 'X'  # Player 'X' starts
+        self.move_list = []
+        self.valid_moves = [f"{chr(ord('A') + col)}{row + 1}" for row in range(SIZE) for col in range(SIZE)]
 
     def name(self):
         return "Hex (returned from Python)"
 
     def thumbnail(self):
-        return "TODO"
+        return "⬣⬣⬣⬣⬣\n⬣⬣⬣⬣⬣"
 
 
     def display(self):
+        display_hex = lambda hex: '\x1b[31m⬣\x1b[0m' if hex == 'X' else ('\x1b[36m⬣\x1b[0m' if hex == 'O' else '.')
         board = "  " + " ".join([chr(ord('A') + i) for i in range(SIZE)]) + "\n"
         for row in range(SIZE):
-            board += " " * row + f"{row + 1:2} " + " ".join(self.board[row]) + "\n"
+            board += " " * row + f"{row + 1:2} " + " ".join(map(display_hex, self.board[row])) + "\n"
         return board
 
     def display_size(self):
@@ -46,7 +54,7 @@ class Hex:
                 row_num = int(move[1:]) - 1
                 col = ord(col_char) - ord('A')
                 row = row_num
-            except (IndexError, ValueError):
+            except (IndexError, ValueError) as e:
                 return False
         else:
             row = move[0]
@@ -64,18 +72,19 @@ class Hex:
         except (IndexError, ValueError):
             raise Exception("Invalid move format. Use format like A1, B3, etc.")
 
-
         if self.is_valid_move((row, col)):
             self.move_list.append(move)
+            self.valid_moves.remove(move)
             self.board[row][col] = self.current_player
             self.switch_player()
         else:
             raise Exception("Invalid move. Cell is either occupied or out of bounds.")
 
     def computer_move(self):
-        self.x += 1
-        return f"A{self.x}"
+        return djinn_py.best_move(self, SEARCH_DEPTH)
 
+    def reset(self):
+        self.__init__()
 
     def __get_neighbors(self, row, col):
         directions = [(-1, 0), (-1, 1), (0, -1),
@@ -122,3 +131,26 @@ class Hex:
                         visited.add(neighbor)
                         queue.append(neighbor)
         return False
+
+    def is_terminal(self) -> bool:
+        return self.__check_win()
+
+    def heuristic_value(self) -> int:
+        if self.__check_win():
+            if self.current_player == 'X':
+                return 1
+            else:
+                return -1
+
+        return 0
+
+    def is_maximising_player(self) -> bool:
+        return self.current_player == 'X'
+
+    def actions(self) -> List[str]:
+        return self.valid_moves
+
+    def result(self, action: str) -> Self:
+        new = copy.deepcopy(self)
+        new.play_move(action)
+        return new

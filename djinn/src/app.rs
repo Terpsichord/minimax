@@ -68,8 +68,8 @@ impl App<'_> {
             (GameId::new(), Box::new(Chess::default())),
         ];
 
-        let plugin_games = Python::with_gil(Self::load_python_plugins);
-        games.extend(plugin_games.into_iter().map(|g| (GameId::new(), g)));
+        // let plugin_games = Python::with_gil(Self::load_python_plugins);
+        // games.extend(plugin_games.into_iter().map(|g| (GameId::new(), g)));
 
         let game_cards = games
             .iter()
@@ -106,7 +106,8 @@ impl App<'_> {
         for path in paths {
             let plugin = plugin_manager
                 .load_plugin(path)
-                .expect("TODO: failed to load plugin");
+                // TODO: better error handling
+                .expect("failed to load plugin");
             let game: Box<dyn Game> = Box::new(plugin);
             plugins.push(game);
         }

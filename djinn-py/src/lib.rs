@@ -3,13 +3,7 @@ use djinn_minimax as minimax;
 
 struct State(PyObject);
 
-impl<'a> Default for State {
-    fn default() -> Self {
-        panic!("Default not implemented for PyStateWrapper");
-    }
-}
-
-impl minimax::State<f64, String> for State {
+impl minimax::State<i64, String> for State {
     fn is_terminal(&self) -> bool {
         Python::with_gil(|py| {
             self.0
@@ -20,13 +14,13 @@ impl minimax::State<f64, String> for State {
         })
     }
 
-    fn evaluation(&self) -> f64 {
+    fn evaluation(&self) -> i64 {
         Python::with_gil(|py| {
             self.0
                 .call_method0(py, "heuristic_value")
                 .expect("Failed to call Python method 'heuristic_value'")
                 .extract(py)
-                .expect("Failed to extract f64 from Python")
+                .expect("Failed to extract i64 from Python")
         })
     }
 
@@ -56,6 +50,7 @@ impl minimax::State<f64, String> for State {
     }
 
     fn result(&self, action: &String) -> Self {
+        panic!("called result");
         Python::with_gil(|py| {
             State(self.0
                 .call_method1(py, "result", (action,))

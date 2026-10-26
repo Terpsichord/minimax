@@ -1,7 +1,7 @@
 use crate::action::Action;
 use crate::components::Component;
 use crate::games::{Game, WinState};
-use color_eyre::eyre::eyre;
+use ansi_to_tui::IntoText;
 use crossterm::event::{KeyCode, KeyEvent, MouseButton, MouseEvent, MouseEventKind};
 use itertools::Itertools;
 use ratatui::layout::{Constraint, Flex, Margin, Rect};
@@ -197,7 +197,7 @@ impl Component for GameScreen<'_> {
         let [game_view_area, move_history_area, input_area] =
             Self::layout_areas(area, self.game().display_size());
 
-        let game_view = Paragraph::new(self.game().display()).block(Block::bordered());
+        let game_view = Paragraph::new(self.game().display().into_text().expect("failed to show game display")).block(Block::bordered());
         frame.render_widget(game_view, game_view_area);
 
         let move_history_text = Text::from(Self::format_move_history(&self.game().move_history()));
@@ -250,8 +250,11 @@ impl Component for GameScreen<'_> {
         {
             let handle = self.computer_move_thread.take().unwrap(); // guaranteed to be Some
             let computer_move = handle
+                // TODO: improve error handling here
                 .join()
-                .map_err(|_| eyre!("Failed to make computer move"))?;
+                .unwrap_or_else(|e| {
+                    std::panic::resume_unwind(e);
+                });
 
             self.game_mut().play_move(&computer_move);
             let win_state = { self.game().win_state() };

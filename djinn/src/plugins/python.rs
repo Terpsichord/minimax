@@ -1,7 +1,7 @@
 use crate::games::{Game, WinState};
 use convert_case::{Case, Casing};
 use pyo3::prelude::{PyAnyMethods, PyModule};
-use pyo3::{PyObject, PyResult, Python};
+use pyo3::{PyObject, Python};
 use std::fs;
 use std::path::Path;
 
@@ -123,11 +123,12 @@ impl<'py> PythonPluginManager<'py> {
         Self(py)
     }
 
-    pub fn load_plugin<P: AsRef<Path>>(&self, path: P) -> PyResult<Plugin> {
+    pub fn load_plugin<P: AsRef<Path>>(&self, path: P) -> color_eyre::Result<Plugin> {
         let code = fs::read_to_string(&path)?;
         let module_name = path.as_ref().file_stem();
         let class_name = module_name
-            .expect("TODO: invalid file path")
+            // TODO: better error handling
+            .expect("invalid file path")
             .to_str()
             .unwrap()
             .to_case(Case::Pascal);
@@ -138,9 +139,11 @@ impl<'py> PythonPluginManager<'py> {
             path.as_ref().file_name().unwrap().to_str().unwrap(),
             module_name.unwrap().to_str().unwrap(),
         )?;
-        plugin_module
+
+        let bound_plugin = plugin_module
             .getattr(&*class_name)?
-            .call0()
-            .map(|p| Plugin(p.unbind()))
+            .call0()?;
+
+        Ok(Plugin(bound_plugin.unbind()))
     }
 }
